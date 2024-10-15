@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>o</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: black;
+            cursor: none; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            background-color: black;
+        }
+
+        .message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        #custom-cursor {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background-color: white;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .timer {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            color: white;
+        }
+
+        .text1 {
+            position: absolute;
+            left: 1%;
+            width: 30%;
+            color: gray;
+            font-size: 25px;
+            text-align: left;
+        }
+
+        .text2 {
+            position: absolute;
+            right: 1%;
+            width: 30%;
+            color: gray;
+            font-size: 25px;
+            text-align: right;
+        }
+        
+    </style>
+</head>
+<body>
+    
+    <canvas id="maze"></canvas>
+    <div id="custom-cursor"></div>
+    <div id="message" class="message"></div>
+    <div class="timer" id="timer">60초 남음</div>
+    <div class="text1"><p>제한 시간은 1분입니다. 스테이지는 총 4개입니다. 벽에 마우스가 닿으면 실패입니다. 무조건 초록색에 닿은 후 빨간색에 닿아야 스테이지가 클리어됩니다. 한 스테이지가 끝나면 다시 초록색에 닿았다가 빨간색에 도달하십시오. 커서의 색이 초록색인지 확인하십시오. 벽은 랜덤으로 생성되지 않습니다. 몇 번을 새로고침하더라도 같은 스테이지가 당신을 반깁니다. </p></div>
+    <div class="text2"><p>
+"벽에 닿음" 메시지는 초록색에 닿으면 사라집니다. 잘 생각해서 이용하면 기록 단축의 열쇠가 될 수 있습니다. 간혹 마우스 컨트롤에 집중력을 요구하다가 혐오스러운 사진을 갑자기 띄우는 악질 웹 게임이 존재하고 있으나 제작자가 혐오스러운 사진이 갑자기 나타나는 것을 좋아하지 않아 그런 요소는 넣지 않았기에 걱정하지 말라는 전언을 전해드립니다.</p></div>
+    <script>
+        const canvas = document.getElementById('maze');
+        const ctx = canvas.getContext('2d');
+        const messageBox = document.getElementById('message');
+        const customCursor = document.getElementById('custom-cursor');
+        const timerDisplay = document.getElementById('timer');
+
+        let mazeStarted = false;
+        let startTouched = false;
+        let mazeCompleted = false;
+        let currentStage = 0;
+        let timeLeft = 60;
+        let timerInterval;
+
+        const mazeWidth = 600;
+        const mazeHeight = 400;
+
+        canvas.width = mazeWidth;
+        canvas.height = mazeHeight;
+
+        const stages = [
+            { // Stage 1: Easy
+                walls: [
+                    { x: 50, y: 50, width: 500, height: 10 },
+                    { x: 50, y: 50, width: 10, height: 300 },
+                    { x: 50, y: 340, width: 500, height: 10 },
+                    { x: 540, y: 50, width: 10, height: 300 }
+                ],
+                startZone: { x: 60, y: 60, width: 40, height: 40 },
+                endZone: { x: 500, y: 300, width: 50, height: 50 }
+            },
+            { // Stage 2: Medium
+                walls: [
+                    { x: 50, y: 50, width: 500, height: 10 },
+                    { x: 50, y: 50, width: 10, height: 300 },
+                    { x: 50, y: 340, width: 500, height: 10 },
+                    { x: 540, y: 50, width: 10, height: 300 },
+                    { x: 200, y: 150, width: 300, height: 10 },
+                    { x: 200, y: 150, width: 10, height: 150 },
+                    { x: 200, y: 290, width: 300, height: 10 }
+                ],
+                startZone: { x: 60, y: 60, width: 40, height: 40 },
+                endZone: { x: 500, y: 300, width: 50, height: 50 }
+            },
+            { // Stage 3: Hard
+                walls: [
+                    { x: 50, y: 50, width: 500, height: 10 },
+                    { x: 50, y: 50, width: 10, height: 300 },
+                    { x: 50, y: 340, width: 500, height: 10 },
+                    { x: 540, y: 50, width: 10, height: 300 },
+                    { x: 150, y: 100, width: 300, height: 10 },
+                    { x: 150, y: 100, width: 10, height: 200 },
+                    { x: 450, y: 100, width: 10, height: 200 },
+                    { x: 150, y: 300, width: 300, height: 10 }
+                ],
+                startZone: { x: 60, y: 60, width: 40, height: 40 },
+                endZone: { x: 500, y: 300, width: 50, height: 50 }
+            },
+            { // Stage 4: Very Hard
+                walls: [
+                    { x: 50, y: 50, width: 500, height: 10 },
+                    { x: 50, y: 50, width: 10, height: 300 },
+                    { x: 50, y: 340, width: 500, height: 10 },
+                    { x: 540, y: 50, width: 10, height: 300 },
+                    { x: 150, y: 100, width: 250, height: 10 },
+                    { x: 100, y: 50, width: 10, height: 250 },
+                    { x: 150, y: 150, width: 10, height: 200 },
+                    { x: 200, y: 100, width: 10, height: 150 },
+                    { x: 300, y: 50, width: 10, height: 200 },
+                    { x: 450, y: 100, width: 10, height: 200 },
+                    { x: 150, y: 300, width: 300, height: 10 },
+                    { x: 250, y: 180, width: 10, height: 120 },
+                    { x: 350, y: 200, width: 10, height: 100 },
+                    { x: 400, y: 100, width: 10, height: 120 },
+                    { x: 490, y: 50, width: 10, height: 200 },
+                ],
+                startZone: { x: 60, y: 60, width: 40, height: 40 },
+                endZone: { x: 500, y: 300, width: 50, height: 50 }
+            }
+        ];
+
+        function drawMaze() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+
+            // 미로 벽 그리기
+            stages[currentStage].walls.forEach(wall => {
+                ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
+            });
+
+            // 시작 영역
+            ctx.fillStyle = 'green';
+            ctx.fillRect(stages[currentStage].startZone.x, stages[currentStage].startZone.y, stages[currentStage].startZone.width, stages[currentStage].startZone.height);
+
+            // 도착 영역
+            ctx.fillStyle = 'red';
+            ctx.fillRect(stages[currentStage].endZone.x, stages[currentStage].endZone.y, stages[currentStage].endZone.width, stages[currentStage].endZone.height);
+        }
+
+        function startGame() {
+            mazeStarted = true;
+            messageBox.style.display = 'none';
+            customCursor.style.backgroundColor = 'green'; 
+            if (!timerInterval) {
+                startTimer();
+            }
+        }
+
+        function clearGame() {
+            mazeStarted = false;
+            mazeCompleted = true;
+            customCursor.style.backgroundColor = 'white'; 
+            if (currentStage < stages.length - 1) {
+                messageBox.innerText = '스테이지 클리어!';
+                setTimeout(() => {
+                    currentStage++;
+                    resetGame();
+                }, 1000);
+            } else {
+                messageBox.innerText = `모든 스테이지 클리어! 총 시간: ${60 - timeLeft}초 `;
+                stopTimer();
+            }
+            messageBox.style.display = 'block';
+        }
+
+        function failGame() {
+            if (!mazeCompleted) { 
+                mazeStarted = false;
+                messageBox.innerText = '벽에 닿음!';
+                messageBox.style.display = 'block';
+                customCursor.style.backgroundColor = 'white'; 
+            
+            }
+        }
+
+        function resetGame() {
+            mazeCompleted = false;
+            messageBox.style.display = 'none';
+            drawMaze();
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.innerText = `${timeLeft}초 남음`;
+
+                if (timeLeft <= 0) {
+                    stopTimer();
+                    timeover();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        function timeover() {
+            
+                messageBox.innerText = '타임오버!';
+                messageBox.style.display = 'block';
+                customCursor.style.backgroundColor = 'white'; 
+            
+            }
+    
+
+
+        function checkWallCollision(x, y) {
+            return stages[currentStage].walls.some(wall => 
+                x > wall.x && x < wall.x + wall.width &&
+                y > wall.y && y < wall.y + wall.height
+            );
+        }
+
+        document.addEventListener('mousemove', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            
+            customCursor.style.left = `${event.clientX}px`;
+            customCursor.style.top = `${event.clientY}px`;
+
+           
+            if (currentStage >= 1 && !mazeStarted && !mazeCompleted && checkWallCollision(mouseX, mouseY)) {
+                failGame();
+            }
+
+           
+            const startZone = stages[currentStage].startZone;
+            if (!mazeStarted &&
+                mouseX > startZone.x && mouseX < startZone.x + startZone.width &&
+                mouseY > startZone.y && mouseY < startZone.y + startZone.height) {
+                startGame();
+            }
+
+            
+            if (mazeStarted) {
+                const endZone = stages[currentStage].endZone;
+                if (mouseX > endZone.x && mouseX < endZone.x + endZone.width &&
+                    mouseY > endZone.y && mouseY < endZone.y + endZone.height) {
+                    clearGame();
+                }
+
+                if (checkWallCollision(mouseX, mouseY)) {
+                    failGame();
+                }
+            }
+        });
+
+        drawMaze();
+    </script>
+</body>
+</html>
